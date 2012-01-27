@@ -12,6 +12,7 @@
 #include "wx/notebook.h"
 #include <wx/timer.h> 
 #include "dataManager.h"
+#include "usbManager.h"
 
 class viewManagerApp: public wxApp
 {
@@ -23,12 +24,9 @@ public:
 class viewManagerFrame : public wxFrame
 {
 public:
-    viewManagerFrame(wxFrame *frame, const wxString &title, int x, int y, int w, int h);
+    viewManagerFrame(wxFrame *frame, const wxString &title);
+	
     ~viewManagerFrame();
-	void onTimer(wxTimerEvent& f_event);
-
-	;
-
 private:
 	wxNotebook* m_noteBook;
 	wxTextCtrl* m_log;
@@ -36,12 +34,9 @@ private:
 	DataManager* m_dm;
 	wxDataViewListCtrl* m_actCtrl;
 	wxDataViewListCtrl* m_tskCtrl;
-	wxTimer* m_timer;
-
 	DECLARE_EVENT_TABLE()
 };
 BEGIN_EVENT_TABLE(viewManagerFrame, wxFrame)
-	EVT_TIMER(0, viewManagerFrame::onTimer)
 END_EVENT_TABLE() 
 
 IMPLEMENT_APP(viewManagerApp)
@@ -52,31 +47,34 @@ bool viewManagerApp::OnInit()
         return false;
 
     viewManagerFrame *frame =
-        new viewManagerFrame(NULL, "Factory Flash Utility", 40, 40, 1000, 540);
-
+        new viewManagerFrame(NULL, "Factory Flash Utility");
+	
     frame->Show(true);
     return true;
 }
 
 
-
-viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title, int x, int y, int w, int h):
-  wxFrame(frame, wxID_ANY, title, wxPoint(x, y), wxSize(w, h))
+viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
+	wxFrame(frame, wxID_ANY, title, wxPoint(-1, -1), wxSize(-1, -1))
 {
-	m_timer = new wxTimer(this,0);
-	m_timer->Start(100);
+	//FIXME:when task item added,the UI not update simultaneously,
+	//add a timer can fix this problem temporary
+	(new wxTimer(this,0))->Start(100);
 
+	this->Maximize(true);
+	DataManager::init(this);
+	wxSize sz = this->GetClientSize();
 
-	m_dm = new DataManager(this);
-	dataModelInit(m_dm);
+	m_dm = DataManager::getManager();
 
 	m_noteBook = new wxNotebook( this, wxID_ANY );
 
+	wxSize ps = wxSize(sz.GetWidth(),2*sz.GetHeight()/3);
 	//add image panel
 	wxPanel *act_panel = new wxPanel( m_noteBook, wxID_ANY );
-	m_actCtrl = new wxDataViewListCtrl(act_panel,wxID_ANY,wxDefaultPosition,wxDefaultSize,0);
-	m_dm->setDataView(m_actCtrl,DVC_ACT_CTRL);
-	m_actCtrl->SetMinSize(wxSize(-1, 400));
+	m_actCtrl = new wxDataViewListCtrl(act_panel,wxID_ANY,wxDefaultPosition,ps,0);
+	m_dm->bindView(m_actCtrl,DataManager::DVC_ACT_CTRL);
+	m_actCtrl->SetMinSize(ps);
 
 	wxSizer *act_sizer = new wxBoxSizer( wxVERTICAL );
 	act_sizer->Add(m_actCtrl, 1, wxGROW|wxALL, 5);
@@ -84,9 +82,9 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title, int x,
 
 	//add task panel
 	wxPanel *tsk_panel = new wxPanel( m_noteBook, wxID_ANY );
-	m_tskCtrl = new wxDataViewListCtrl(tsk_panel,wxID_ANY,wxDefaultPosition,wxDefaultSize,0);
-	m_dm->setDataView(m_tskCtrl,DVC_TSK_CTRL);
-	m_tskCtrl->SetMinSize(wxSize(-1, 400));
+	m_tskCtrl = new wxDataViewListCtrl(tsk_panel,wxID_ANY,wxDefaultPosition,ps,0);
+	m_dm->bindView(m_tskCtrl,DataManager::DVC_TSK_CTRL);
+	m_tskCtrl->SetMinSize(ps);
 
 	wxSizer *tsk_sizer = new wxBoxSizer( wxVERTICAL );
 	tsk_sizer->Add(m_tskCtrl, 1, wxGROW|wxALL, 5);
@@ -99,37 +97,19 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title, int x,
 	wxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
 
     
-
+	wxSize ls = wxSize(sz.GetWidth(),sz.GetHeight()/3);
 	// redirect logs from our event handlers to text control
     m_log = new wxTextCtrl( this, wxID_ANY, wxString(), wxDefaultPosition,
-                            wxDefaultSize, wxTE_MULTILINE );
-    m_log->SetMinSize(wxSize(800, 100));
+                            ls, wxTE_MULTILINE );
+    m_log->SetMinSize(ls);
     m_logOld = wxLog::SetActiveTarget(new wxLogTextCtrl(m_log));
     wxLogMessage( "This is the log window" );
 
 	mainSizer->Add( m_noteBook, 1, wxGROW );
 	mainSizer->Add( m_log, 0, wxGROW );
 	SetSizerAndFit(mainSizer);
-
-#if 1 //do some test
-	addActItem("E:\\system.img","system");
-
-	//m_imgCtrl->DeleteItem(0);
-	wxDataViewListStore* p= (wxDataViewListStore*)m_actCtrl->GetModel();
-	wxLogMessage( wxString::Format("row %d", p->GetCount()) );
-
-	addTskItem("12345678","flashing system",90);
-#endif
+	UsbManager::init(m_dm);
 }
-
-void viewManagerFrame::onTimer(wxTimerEvent& f_event)
-{
-		static int i=0;
-		i = (i+10)%100;
-		wxLogMessage( wxString::Format("row %d", i) );
-		modifyTskItem("12345678","Flashing System",i);
-}
-
 viewManagerFrame::~viewManagerFrame()
 {
 }

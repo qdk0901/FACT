@@ -178,6 +178,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\usbManager.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\viewManager.cpp"
 				>
 			</File>
@@ -191,6 +195,14 @@
 				RelativePath=".\dataManager.h"
 				>
 			</File>
+			<File
+				RelativePath=".\lusb0_usb.h"
+				>
+			</File>
+			<File
+				RelativePath=".\usbManager.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
@@ -198,6 +210,10 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 		</Filter>
+		<File
+			RelativePath=".\libusb.lib"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>
