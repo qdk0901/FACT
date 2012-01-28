@@ -5,7 +5,10 @@
 #include <set>
 using namespace std;
 
-#define MAX_PATH 260
+
+#define USB_BULK_TIMEOUT 5000
+#define USBDBG(fmt,...) wxLogMessage(wxString::Format(fmt, ##__VA_ARGS__))
+
 class UsbManager;
 
 class UsbbootThread
@@ -20,10 +23,32 @@ private:
 	DataManager* m_dm;
 	TaskManager* m_tm;
 	unsigned short check_sum(char* buffer,int size);
-	int usbDownload(usb_dev_handle* dev,char* filePath,int addr);
+	int usbDownload(usb_dev_handle* dev,char* data,int size,int addr);
 	int bootDevice();
 	int m_stage;
 	usb_dev_handle* m_dev;
+	int	m_bulkIn;
+	int m_bulkOut;
+};
+class FastbootThread
+	: public wxThread
+{
+	friend class UsbManager;
+protected:
+	virtual ExitCode Entry();	
+private:
+	FastbootThread(UsbManager* um,DataManager* dm,usb_dev_handle *dev);
+	UsbManager* m_um;
+	DataManager* m_dm;
+	TaskManager* m_tm;
+	usb_dev_handle* m_dev;
+	int	m_bulkIn;
+	int m_bulkOut;
+	int checkResponse(unsigned size,unsigned dataOk,char* response);
+	int sendCommandFull(const char* cmd,const void* data,unsigned size,char* response);
+	int sendCommand(const char* cmd);
+	int sendCommand(const char* cmd,char* response);
+	int downloadData(const void* data,unsigned size);
 };
 class UsbManager : public wxThread{
 public:
