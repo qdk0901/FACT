@@ -18,14 +18,15 @@
 
 enum
 {
-    ID_START = wxID_HIGHEST+1,
-    ID_STOP,
+    ID_LOAD_CONFIG = wxID_HIGHEST+1,
+    ID_START,
     ID_ADD_IMAGE,
     ID_ERASE_DATA,
 	ID_ERASE_CACHE,
 	ID_ERASE_FAT,
 	ID_REPART,
 	ID_SETMAC,
+	ID_REBOOT,
 	ID_DELETE,
     ID_EXIT,
 	ID_ABOUT,
@@ -45,8 +46,8 @@ public:
 	void setError();
     ~viewManagerFrame();
 private:
+	void OnLoadConfig(wxCommandEvent& event);
 	void OnStart(wxCommandEvent& event);
-	void OnStop(wxCommandEvent& event);
 	void OnAddImage(wxCommandEvent& event);
 	void OnMisc(wxCommandEvent& event);
 	void OnDelete(wxCommandEvent& event);
@@ -63,14 +64,15 @@ private:
 	DECLARE_EVENT_TABLE()
 };
 BEGIN_EVENT_TABLE(viewManagerFrame, wxFrame)
+	EVT_MENU( ID_LOAD_CONFIG, viewManagerFrame::OnLoadConfig)
 	EVT_MENU( ID_START, viewManagerFrame::OnStart)
-	EVT_MENU( ID_STOP, viewManagerFrame::OnStop)
 	EVT_MENU( ID_ADD_IMAGE, viewManagerFrame::OnAddImage)
 	EVT_MENU( ID_ERASE_DATA, viewManagerFrame::OnMisc)
 	EVT_MENU( ID_ERASE_CACHE, viewManagerFrame::OnMisc)
 	EVT_MENU( ID_ERASE_FAT, viewManagerFrame::OnMisc)
 	EVT_MENU( ID_SETMAC, viewManagerFrame::OnMisc)
 	EVT_MENU( ID_REPART, viewManagerFrame::OnMisc)
+	EVT_MENU( ID_REBOOT, viewManagerFrame::OnMisc)
 	EVT_MENU( ID_DELETE, viewManagerFrame::OnDelete)
 	EVT_MENU( ID_ABOUT, viewManagerFrame::OnAbout)
 	EVT_DATAVIEW_ITEM_CONTEXT_MENU(ID_ACTION_LIST, viewManagerFrame::OnContextMenu)
@@ -98,8 +100,8 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
 	this->Maximize(true);
 
 	wxMenu *op_menu = new wxMenu;
+    op_menu->Append(ID_LOAD_CONFIG, "Load Config");
     op_menu->Append(ID_START, "Start");
-    op_menu->Append(ID_STOP, "Stop");
     op_menu->AppendSeparator();
     op_menu->Append(ID_EXIT, "Exit");
 
@@ -162,7 +164,7 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
 	mainSizer->Add( m_noteBook, 1, wxGROW );
 	mainSizer->Add( m_log, 0, wxGROW );
 	SetSizerAndFit(mainSizer);
-	UsbManager::init(m_dm);
+	
 }
 void viewManagerFrame::OnSetError(wxCommandEvent& event)
 {
@@ -179,13 +181,39 @@ void viewManagerFrame::OnSetError(wxCommandEvent& event)
 viewManagerFrame::~viewManagerFrame()
 {
 }
+void viewManagerFrame::OnLoadConfig( wxCommandEvent& WXUNUSED(event) )
+{
+    wxFileDialog dialog
+                 (
+                    this,
+                    wxT("Select Config File"),
+                    wxEmptyString,
+                    wxEmptyString,
+                    wxT("Image files (*.sld)|*.sld")
+					);
+
+    dialog.CentreOnParent();
+
+    if (dialog.ShowModal() == wxID_OK)
+    {
+		char dir[MAX_PATH];
+		char path[MAX_PATH];
+		strcpy(path,dialog.GetPath().mb_str());
+		strcpy(dir,dialog.GetDirectory().mb_str());
+        int ret = m_dm->loadBash(dir,path);
+		if(ret != 0){
+			wxString info;
+			info.Printf(wxT("Invalid Config: %s\n"),
+						dialog.GetPath().c_str()
+						);
+			wxMessageDialog dialog2(this, info, wxT("Selected file"));
+			dialog2.ShowModal();
+		}
+    }	
+}
 void viewManagerFrame::OnStart( wxCommandEvent& WXUNUSED(event) )
 {
-
-}
-void viewManagerFrame::OnStop( wxCommandEvent& WXUNUSED(event) )
-{
-
+	UsbManager::init(m_dm);
 }
 void viewManagerFrame::OnAddImage( wxCommandEvent& WXUNUSED(event) )
 {
@@ -204,9 +232,9 @@ void viewManagerFrame::OnAddImage( wxCommandEvent& WXUNUSED(event) )
     {
 		char path[MAX_PATH]={0};
 		strcpy(path,dialog.GetPath().mb_str());
-        int file = m_dm->idenImageFile(path);
-		if(file != 0){
-			m_dm->addActItem(DataManager::OP_FLASH,m_dm->fileToPart(file),path);
+        char* part = m_dm->idenImageFile(path);
+		if(part != NULL){
+			m_dm->addActItem(DataManager::OP_FLASH,part,path);
 		}else{
 			wxString info;
 			info.Printf(wxT("Invalid File: %s\n"),
@@ -245,6 +273,10 @@ void viewManagerFrame::OnMisc( wxCommandEvent& event)
 			action = DataManager::OP_REPART;
 			value1 = "";
 		break;
+		case ID_REBOOT:
+			action = DataManager::OP_REBOOT_TO_SYS;
+			value1 = "";
+		break;
 	}
 	if(action != 0)
 		m_dm->addActItem(action,value1,"");
@@ -255,7 +287,7 @@ void viewManagerFrame::OnDelete( wxCommandEvent& WXUNUSED(event) )
 {
 	int n = m_actCtrl->GetSelectedRow();
 	if(n >= 0)
-		m_actCtrl->DeleteItem(n);
+		m_dm->delActItem(n);
 }
 
 void viewManagerFrame::OnAbout( wxCommandEvent& WXUNUSED(event) )
@@ -277,6 +309,7 @@ void viewManagerFrame::OnContextMenu( wxDataViewEvent& event)
 	menu.Append(ID_ERASE_FAT, "Erase fat");
 	menu.Append(ID_REPART, "Repartition");
 	menu.Append(ID_SETMAC, "Reset Mac Address");
+	menu.Append(ID_REBOOT, "Reboot Device");
 	menu.Append(ID_DELETE, "Delete Item");
     m_actCtrl->PopupMenu(&menu);
 }

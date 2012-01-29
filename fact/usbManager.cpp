@@ -27,7 +27,7 @@ UsbManager::UsbManager(DataManager* dm)
 	if(Create() == wxTHREAD_NO_ERROR){
 		Run();
 	}else{
-		USBDBG( "Cannot create usb thread");
+		LOG( "Cannot create usb thread");
 	}
 }
 void UsbManager::lockDevice(char* dev)
@@ -175,7 +175,7 @@ int UsbbootThread::usbDownload(usb_dev_handle* dev,char* data,int size,int addr)
 
 	buffer = (char*)malloc(size+10);
 	if(!buffer){
-		USBDBG("allocate buffer failed");
+		LOG("allocate buffer failed");
 		return -1;
 	}
 
@@ -186,7 +186,7 @@ int UsbbootThread::usbDownload(usb_dev_handle* dev,char* data,int size,int addr)
 
 	n = usb_bulk_write(dev,m_bulkOut,buffer,size + 10,USB_BULK_TIMEOUT);
 
-	USBDBG("download file:%d bytes written",n);
+	LOG("download file:%d bytes written",n);
 	free(buffer);
 	return n;
 }
@@ -203,13 +203,13 @@ int UsbbootThread::bootDevice()
 	m_dm->getAddress(&add_bl2,&add_uboot);
 
 	if(m_stage == UsbManager::DEV_USBBOOT_S1){
-		bl2 = m_dm->getFileData(DataManager::FILE_BL2,&size_bl2);
+		bl2 = m_dm->getFileData(PART_BL2,&size_bl2);
 		m_tm->update(ud->filename,"usbboot stage1");
 		if(bl2){
 			ret = usbDownload(m_dev,bl2,size_bl2,add_bl2);
 		}
 	}else if(m_stage == UsbManager::DEV_USBBOOT_S2){
-		uboot = m_dm->getFileData(DataManager::FILE_UBOOT,&size_uboot);
+		uboot = m_dm->getFileData(PART_UBOOT,&size_uboot);
 		m_tm->update(ud->filename,"usbboot stage2");
 		if(uboot){
 			ret = usbDownload(m_dev,uboot,size_uboot,add_uboot);
@@ -252,18 +252,18 @@ int FastbootThread::checkResponse(unsigned size,unsigned dataOk,char* response)
     for(;;) {
         r = usb_bulk_read(m_dev, m_bulkIn, (char*)status, 64,USB_BULK_TIMEOUT);
         if(r < 0) {
-            USBDBG("status read failed (%s)", strerror(errno));
+            LOG("status read failed (%s)", strerror(errno));
             return -1;
         }
         status[r] = 0;
 
         if(r < 4) {
-            USBDBG("status malformed (%d bytes)", r);
+            LOG("status malformed (%d bytes)", r);
             return -1;
         }
 
         if(!memcmp(status, "INFO", 4)) {
-            USBDBG("(bootloader) %s\n", status + 4);
+            LOG("(bootloader) %s\n", status + 4);
             continue;
         }
 
@@ -276,9 +276,9 @@ int FastbootThread::checkResponse(unsigned size,unsigned dataOk,char* response)
 
         if(!memcmp(status, "FAIL", 4)) {
             if(r > 4) {
-                USBDBG("remote: %s", status + 4);
+                LOG("remote: %s", status + 4);
             } else {
-                USBDBG("remote failure");
+                LOG("remote failure");
             }
             return -1;
         }
@@ -286,13 +286,13 @@ int FastbootThread::checkResponse(unsigned size,unsigned dataOk,char* response)
         if(!memcmp(status, "DATA", 4) && dataOk){
             unsigned dsize = strtoul((char*) status + 4, 0, 16);
             if(dsize > size) {
-                USBDBG("data size too large");
+                LOG("data size too large");
                 return -1;
             }
             return dsize;
         }
 
-        USBDBG("unknown status code");
+        LOG("unknown status code");
         break;
     }
     return -1;
@@ -307,12 +307,12 @@ int FastbootThread::sendCommandFull(const char* cmd,const void* data,unsigned si
     }
 
     if(cmdsize > 64) {
-        USBDBG("command too large");
+        LOG("command too large");
         return -1;
     }
 
     if(usb_bulk_write(m_dev, m_bulkOut,(char*)cmd, cmdsize,USB_BULK_TIMEOUT) != cmdsize) {
-        USBDBG("command write failed (%s)", strerror(errno));
+        LOG("command write failed (%s)", strerror(errno));
         return -1;
     }
 
@@ -329,11 +329,11 @@ int FastbootThread::sendCommandFull(const char* cmd,const void* data,unsigned si
     if(size) {
         r = usb_bulk_write(m_dev, m_bulkOut, (char*)data, size,USB_BULK_TIMEOUT);
         if(r < 0) {
-            USBDBG("data transfer failure (%s)", strerror(errno));
+            LOG("data transfer failure (%s)", strerror(errno));
             return -1;
         }
         if(r != ((int) size)) {
-            USBDBG("data transfer failure (short transfer)");
+            LOG("data transfer failure (short transfer)");
             return -1;
         }
     }
@@ -367,20 +367,58 @@ int FastbootThread::downloadData(const void* data,unsigned size)
         return 0;
     }	
 }
+int FastbootThread::flashPart(char* part)
+{
+	LOG("flash part:%s",part);
+	return 0;
+}
+int FastbootThread::erasePart(char* part)
+{
+	LOG("erase part:%s",part);
+	return 0;
+}
+int FastbootThread::repart()
+{
+	LOG("repart");
+	return 0;
+}
+int FastbootThread::resetMacAddr()
+{
+	LOG("reset mac address");
+	return 0;
+}
+int FastbootThread::reboot()
+{
+	LOG("reboot the device");
+	return 0;
+}
 
 wxThread::ExitCode FastbootThread::Entry()
 {
-	char response[65];
-	char cmd[65] = "oem setmac 11:22:33:44:55:66";
-	m_tm = m_dm->newTask();
-
-	struct usb_device* ud = usb_device(m_dev);
-	m_tm->update(ud->filename,"fastboot");
-
-	sendCommand(cmd,response);
-	USBDBG("%s",response);
-
-	m_um->releaseDevice(m_dev);
+	int i = 0;
+	struct tk t;
+	while(TRUE == m_dm->walkActionList(i++,&t))
+	{
+		switch(t.op)
+		{
+			case DataManager::OP_FLASH:
+				flashPart(t.v1);
+			break;
+			case DataManager::OP_ERASE:
+				erasePart(t.v1);
+			break;
+			case DataManager::OP_SETMAC:
+				resetMacAddr();
+			break;
+			case DataManager::OP_REPART:
+				repart();
+			break;
+			case DataManager::OP_REBOOT_TO_SYS:
+				reboot();
+			break;
+		}
+	}
+	//m_um->releaseDevice(m_dev);
 
 	return 0;
 }

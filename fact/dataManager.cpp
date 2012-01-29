@@ -2,6 +2,7 @@
 
 #include "dataManager.h"
 
+
 DataManager* DataManager::m_dm = NULL;
 
 DataManager::DataManager(wxFrame* pFrame)
@@ -9,6 +10,17 @@ DataManager::DataManager(wxFrame* pFrame)
 	m_pFrame = pFrame;
 	m_actList = new wxDataViewListStore();
 	m_tskList = new wxDataViewListStore();
+	m_partPath.insert(std::make_pair(PART_BL2,getDefaultPath(PART_BL2)));
+	m_partPath.insert(std::make_pair(PART_UBOOT,getDefaultPath(PART_UBOOT)));
+}
+char* DataManager::getDefaultPath(char* part)
+{
+	if(!strcmp(part,PART_BL2))
+		return "F:\\usbboot\\bin\\V210_USB.BL2.bin";
+	else if(!strcmp(part,PART_UBOOT))
+		return "F:\\usbboot\\bin\\u-boot.bin";
+	
+	return 0;
 }
 // i== 0, normal
 // i== 1, exception
@@ -54,18 +66,18 @@ char* DataManager::opToStr(int op)
 	{
 		case OP_FLASH:
 			return STR_FLASH;
-		break;
 		case OP_ERASE:
 			return STR_ERASE;
-		break;
 		case OP_SETMAC:
 			return STR_SETMAC;
 		case OP_REPART:
 			return STR_REPART;
+		case OP_REBOOT_TO_SYS:
+			return STR_REBOOT;
 	}
 	return NULL;
 }
-int DataManager::strToOp(char* str)
+int DataManager::strToOp(const char* str)
 {
 	if(!str){
 		return -1;
@@ -77,31 +89,16 @@ int DataManager::strToOp(char* str)
 		return OP_SETMAC;
 	}else if(!strcmp(str,STR_REPART)){
 		return OP_REPART;
+	}else if(!strcmp(str,STR_REBOOT)){
+		return OP_REBOOT_TO_SYS;
 	}
 	return -1;
 }
-char* DataManager::fileToPart(int file)
+int DataManager::addActItem(int operation,const char* value1,const char* value2)
 {
-	switch(file)
-	{
-		case FILE_UBOOT:
-			return PART_UBOOT;
-		break;
-		case FILE_KERNEL:
-			return PART_KERNEL;
-		break;
-		case FILE_RAMDISK:
-			return PART_RAMDISK;
-		case FILE_SYSTEM:
-			return PART_SYSTEM;
-		case FILE_RECOVERY:
-			return PART_RECOVERY;
+	if(operation == OP_FLASH){
+		m_partPath.insert(std::make_pair(value1,value2));
 	}
-	return NULL;	
-}
-
-int DataManager::addActItem(int operation,char* value1,char* value2)
-{
 	wxVector<wxVariant> data;
 	data.push_back( opToStr(operation) );
     data.push_back( wxString::Format("%s", value1) );
@@ -110,9 +107,48 @@ int DataManager::addActItem(int operation,char* value1,char* value2)
 	m_actList->AppendItem(data);
 	return 0;
 }
+int DataManager::delActItem(int n)
+{
+	string op;
+	string part;
+	wxVariant v;
+	m_actList->GetValueByRow(v,n,0);
+	op = v.GetString().ToStdString();
+	
+	if(op == STR_FLASH){
+		m_actList->GetValueByRow(v,n,1);
+		part = v.GetString().ToStdString();
+		m_partPath.erase(part);	
+	}
+
+	m_actList->DeleteItem(n);
+	return 0;
+}
+int DataManager::clearActItems()
+{
+	m_actList->DeleteAllItems();
+	return 0;
+}
+int DataManager::walkActionList(int n,struct tk* t)
+{
+	if(n >= m_actList->GetCount())
+		return FALSE;
+
+	wxVariant v;
+	m_actList->GetValueByRow(v,n,0);
+	t->op = strToOp((char*)v.GetString().ToStdString().c_str());
+
+	m_actList->GetValueByRow(v,n,1);
+	strcpy(t->v1,v.GetString().mb_str());
+
+	m_actList->GetValueByRow(v,n,2);
+	strcpy(t->v2,v.GetString().mb_str());
+
+	return TRUE;
+}
 
 #define IDEN_BUFFER 512
-int DataManager::idenImageFile(char* path)
+char* DataManager::idenImageFile(const char* path)
 {
 	int sz;
     FILE* f;
@@ -134,23 +170,23 @@ int DataManager::idenImageFile(char* path)
 	if(sz < 1024*1024){
 		int* p = (int*)data;
 		if(p[0] == 0x2000 && p[1] == 0 && p[2] == 0 && p[3] == 0){
-			return FILE_UBOOT;
+			return PART_UBOOT;
 		}
 	}else if(sz < 2*1024*1024){
 		if(!strncmp(data+0x20,"ramdisk",strlen("ramdisk"))){
-			return FILE_RAMDISK;
+			return PART_RAMDISK;
 		}
 	}else if(sz < 4*1024*1024){
 		int* p = (int*)data;
 		if(p[0] == 0xe1a00000 && p[1] == 0xe1a00000 && p[2] == 0xe1a00000 && p[3] == 0xe1a00000){
-			return FILE_KERNEL;
+			return PART_KERNEL;
 		}
 	}else if(sz > 100*1024*1024){
 		for(int i=0;i<IDEN_BUFFER;i++){
 			if(data[i] != 0)
 				return 0;
 		}
-		return FILE_SYSTEM;
+		return PART_SYSTEM;
 	}
 	return 0;
 }
@@ -215,23 +251,18 @@ oops:
     if(data != 0) free(data);
     return 0;	
 }
-char* DataManager::getFileData(int file,int* size)
+char* DataManager::getFileData(char* file,int* size)
 {
-	map<int, struct fi>::iterator it = m_fileLoaded.find(file);
+	map<char*, struct fi>::iterator it = m_fileLoaded.find(file);
 	if(it != m_fileLoaded.end()){
 		*size = it->second.size;
 		return it->second.data;
 	}
-	char filePath[MAX_PATH] = {0};
-	switch(file)
-	{
-		case FILE_BL2:
-			strcpy(filePath,"F:\\usbboot\\bin\\V210_USB.BL2.bin");
-		break;
-		case FILE_UBOOT:
-			strcpy(filePath,"F:\\usbboot\\bin\\u-boot.bin");
-		break;
+	map<string, string>::iterator it2 = m_partPath.find(file);
+	if(it2 == m_partPath.end()){
+		return NULL;
 	}
+	char* filePath = (char*)it2->second.c_str();
 	char* data;
 	data = loadFile(filePath,size);
 	if(data){
@@ -243,6 +274,62 @@ void DataManager::getAddress(int* bl2,int* uboot)
 {
 	*bl2 = 0xd0020010;
 	*uboot = 0x23e00000;
+}
+int DataManager::loadBash(char* dir,char* bash)
+{
+	ifstream ifs(bash);
+	string s,op,v1,v2;
+	stringstream ss(s);
+	if(!ifs){
+		LOG("open file %s error",bash);
+		return -1;
+	}
+	int ret = 0;
+	clearActItems();
+	while(getline(ifs,s))
+	{
+		ss.clear();
+		ss.str(s);
+		ss >> op;
+		if(op == STR_FLASH){
+			ss >> v1;
+			ss >> v2;
+			if(v1 == PART_UBOOT || v1 == PART_KERNEL || v1 == PART_RAMDISK || v1 == PART_SYSTEM || v1 == PART_RECOVERY){
+				string p = dir;
+				p = p + "\\" + v2;
+				char* iden = idenImageFile(p.c_str());
+				if(iden && v1 == iden){
+					addActItem(strToOp(op.c_str()),v1.c_str(),p.c_str());
+				}else{
+					LOG("%s is not a valid image file",p);
+					ret = -1;
+					break;
+				}
+			}else{
+					LOG("%s is not a valid partition",v1);
+					ret = -1;
+					break;
+			}
+		}else if(op == STR_ERASE){
+			ss >> v1;
+			if(v1 == PART_DATA || v1 == PART_CACHE || v1 == PART_FAT){
+				addActItem(strToOp(op.c_str()),v1.c_str(),"");
+			}else{
+					LOG("%s is not a valid partition",v1);
+					ret = -1;
+					break;
+			}
+		}else if(op == STR_SETMAC || op == STR_REPART || op == STR_REBOOT){
+			addActItem(strToOp(op.c_str()),"","");
+		}else{
+					LOG("%s is not a valid operation",op);
+					ret = -1;
+					break;
+		}
+	}
+	if(ret < 0)
+		clearActItems();
+	return ret;
 }
 
 TaskManager::TaskManager(DataManager* dm,wxDataViewListStore* p)

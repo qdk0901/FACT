@@ -9,15 +9,21 @@
 
 #include "wx/dataview.h"
 #include <map>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
 using namespace std;
 
 #define MAX_PATH 260
 
-#define STR_FLASH  "Flash Partition"
-#define STR_ERASE  "Erase Partition"
-#define STR_SETMAC "Reset Mac Address"
-#define STR_REPART "Repartition"
+#define STR_FLASH  "FLASH_PART"
+#define STR_ERASE  "ERASE_PART"
+#define STR_SETMAC "SET_MAC"
+#define STR_REPART "REPART"
+#define STR_REBOOT "REBOOT"
 
+#define PART_BL2 "bl2"
 #define PART_UBOOT "bootloader"
 #define PART_KERNEL	"kernel"
 #define PART_RAMDISK "ramdisk"
@@ -26,6 +32,8 @@ using namespace std;
 #define PART_DATA "userdata"
 #define PART_CACHE "cache"
 #define PART_FAT "fat"
+
+#define LOG(fmt,...) wxLogMessage(wxString::Format(fmt, ##__VA_ARGS__))
 
 class DataManager;
 
@@ -52,6 +60,12 @@ struct fi
 	fi():data(0),size(0){}
 	fi(char* x,int y):data(x),size(y){}
 };
+struct tk
+{
+	int op;
+	char v1[MAX_PATH];
+	char v2[MAX_PATH];
+};
 class DataManager
 {
 public:
@@ -61,39 +75,36 @@ public:
 	static const int VID_PID_1S2 = 104;
 	static const int VID_PID_2 = 105;
 	
-	static const int FILE_BL2 = 106;
-	static const int FILE_UBOOT = 107;
-	static const int FILE_KERNEL = 108;
-	static const int FILE_RAMDISK = 109;
-	static const int FILE_SYSTEM = 110;
-	static const int FILE_RECOVERY = 111;
-
 	static const int OP_FLASH = 112;
 	static const int OP_ERASE = 113;
 	static const int OP_SETMAC = 114;
 	static const int OP_REPART = 115;
+	static const int OP_REBOOT_TO_SYS = 116;
 	static const int EVT_SET_ERROR = wxID_HIGHEST + 100;
 	static const int EVT_UPDATE_CTRL = wxID_HIGHEST + 101;
     ~DataManager();
 
 	void setError(int i);
 	int bindView(wxDataViewListCtrl* ctrl,int type);
-	int addActItem(int operation,char* value1,char* value2);
-	int idenImageFile(char* path);
-	char* fileToPart(int file);
+	int addActItem(int operation,const char* value1,const char* value2);
+	int delActItem(int row);
+	int clearActItems();
+	char* idenImageFile(const char* path);
 
 	void getVidPid(int* vid,int* pid,int type);
 
 	char* loadFile(char* path,int* size);
-	char* getFileData(int file,int* size);
+	char* getFileData(char* file,int* size);
 	void getAddress(int* bl2,int* uboot);
+	int walkActionList(int current,struct tk* t);
+	int loadBash(char* dir,char* bash);
 
 	TaskManager* newTask();
 	
 	static void init(wxFrame* pFrame);
 	static DataManager* getManager();
 private:
-	
+	char* getDefaultPath(char* part);
 	static DataManager* m_dm;
 
     DataManager(wxFrame* pFrame);
@@ -102,7 +113,8 @@ private:
 	wxFrame* m_pFrame;
 
 	char* opToStr(int op);
-	int strToOp(char* str);
-	map<int,struct fi> m_fileLoaded;
+	int strToOp(const char* str);
+	map<char*,struct fi> m_fileLoaded;
+	map<string,string> m_partPath;
 };
 #endif

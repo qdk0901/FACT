@@ -7,7 +7,6 @@ using namespace std;
 
 
 #define USB_BULK_TIMEOUT 5000
-#define USBDBG(fmt,...) wxLogMessage(wxString::Format(fmt, ##__VA_ARGS__))
 
 class UsbManager;
 
@@ -49,6 +48,11 @@ private:
 	int sendCommand(const char* cmd);
 	int sendCommand(const char* cmd,char* response);
 	int downloadData(const void* data,unsigned size);
+	int flashPart(char* part);
+	int erasePart(char* part);
+	int repart();
+	int resetMacAddr();
+	int reboot();
 };
 class UsbManager : public wxThread{
 public:
