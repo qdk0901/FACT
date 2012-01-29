@@ -3,10 +3,11 @@
 #include "dataManager.h"
 #include "lusb0_usb.h"
 #include <set>
+#include <map>
 using namespace std;
 
 
-#define USB_BULK_TIMEOUT 5000
+#define USB_BULK_TIMEOUT -1
 
 class UsbManager;
 

@@ -1,12 +1,14 @@
 
 
 #include "dataManager.h"
+#include <time.h>
 
 
 DataManager* DataManager::m_dm = NULL;
 
 DataManager::DataManager(wxFrame* pFrame)
 {
+	macGenInit((unsigned) time(NULL));
 	m_pFrame = pFrame;
 	m_actList = new wxDataViewListStore();
 	m_tskList = new wxDataViewListStore();
@@ -253,7 +255,7 @@ oops:
 }
 char* DataManager::getFileData(char* file,int* size)
 {
-	map<char*, struct fi>::iterator it = m_fileLoaded.find(file);
+	map<string, struct fi>::iterator it = m_fileLoaded.find(file);
 	if(it != m_fileLoaded.end()){
 		*size = it->second.size;
 		return it->second.data;
@@ -331,6 +333,18 @@ int DataManager::loadBash(char* dir,char* bash)
 		clearActItems();
 	return ret;
 }
+
+int DataManager::macGenInit(int seed)
+{
+	srand(seed);
+	return 0;
+}
+int DataManager::macGen(char* out)
+{
+	sprintf(out,"00:03:%02X:%02X:%02X:%02X\0",rand()&0xFF,rand()&0xFF,rand()&0xFF,rand()&0xFF);
+	return 0;
+}
+
 
 TaskManager::TaskManager(DataManager* dm,wxDataViewListStore* p)
 {

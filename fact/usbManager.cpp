@@ -246,7 +246,7 @@ FastbootThread::FastbootThread(UsbManager* um,DataManager* dm,usb_dev_handle *de
 
 int FastbootThread::checkResponse(unsigned size,unsigned dataOk,char* response)
 {
-	unsigned char status[65];
+	char status[65];
     int r;
 
     for(;;) {
@@ -263,13 +263,13 @@ int FastbootThread::checkResponse(unsigned size,unsigned dataOk,char* response)
         }
 
         if(!memcmp(status, "INFO", 4)) {
-            LOG("(bootloader) %s\n", status + 4);
+            LOG("(bootloader) %s", status + 4);
             continue;
         }
 
         if(!memcmp(status, "OKAY", 4)) {
             if(response) {
-                strcpy(response, (char*) status + 4);
+                strcpy(response, status + 4);
             }
             return 0;
         }
@@ -370,11 +370,37 @@ int FastbootThread::downloadData(const void* data,unsigned size)
 int FastbootThread::flashPart(char* part)
 {
 	LOG("flash part:%s",part);
+	char* data;
+	int size;
+	data = m_dm->getFileData(part,&size);
+	if(!data){
+		LOG("cannot get image %s",part);
+		return -1;
+	}
+	if(downloadData(data,size) < 0){
+		LOG("download %s failed",part);
+		return -1;
+	}
+	
+	char cmd[64];
+	char response[64];
+	sprintf(cmd, "flash:%s", part);
+	if(sendCommand(cmd,response) < 0){
+		LOG("flash %s failed",part);
+		return -1;
+	}
 	return 0;
 }
 int FastbootThread::erasePart(char* part)
 {
 	LOG("erase part:%s",part);
+	char cmd[64];
+	sprintf(cmd, "erase:%s", part);
+	if(sendCommand(cmd) < 0){
+		LOG("erase %s failed",part);
+		return -1;
+	}
+	LOG("done");
 	return 0;
 }
 int FastbootThread::repart()
@@ -385,11 +411,27 @@ int FastbootThread::repart()
 int FastbootThread::resetMacAddr()
 {
 	LOG("reset mac address");
+	char cmd[64];
+	char mac[20];
+	char response[64];
+	m_dm->macGen(mac);
+	sprintf(cmd, "oem setmac %s", mac);
+	if(sendCommand(cmd,response) < 0){
+		LOG("reset mac address failed");
+		return -1;
+	}
 	return 0;
 }
 int FastbootThread::reboot()
 {
 	LOG("reboot the device");
+	char cmd[64];
+	char response[64];
+	sprintf(cmd, "reboot");
+	if(sendCommand(cmd,response) < 0){
+		LOG("reboot failed");
+		return -1;
+	}
 	return 0;
 }
 

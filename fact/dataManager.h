@@ -98,8 +98,12 @@ public:
 	void getAddress(int* bl2,int* uboot);
 	int walkActionList(int current,struct tk* t);
 	int loadBash(char* dir,char* bash);
+	int macGenInit(int seed);
+	int macGen(char* out);
+
 
 	TaskManager* newTask();
+	
 	
 	static void init(wxFrame* pFrame);
 	static DataManager* getManager();
@@ -114,7 +118,8 @@ private:
 
 	char* opToStr(int op);
 	int strToOp(const char* str);
-	map<char*,struct fi> m_fileLoaded;
+
+	map<string,struct fi> m_fileLoaded;
 	map<string,string> m_partPath;
 };
 #endif
