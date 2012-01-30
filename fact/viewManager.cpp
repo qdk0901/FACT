@@ -15,7 +15,6 @@
 #include "dataManager.h"
 #include "usbManager.h"
 
-
 enum
 {
     ID_LOAD_CONFIG = wxID_HIGHEST+1,
@@ -54,6 +53,7 @@ private:
 	void OnAbout(wxCommandEvent& event);
 	void OnContextMenu( wxDataViewEvent &event );
 	void OnSetError(wxCommandEvent& WXUNUSED(event));
+	void OnUpdateData(wxCommandEvent& WXUNUSED(event));
 
 	wxNotebook* m_noteBook;
 	wxTextCtrl* m_log;
@@ -77,6 +77,8 @@ BEGIN_EVENT_TABLE(viewManagerFrame, wxFrame)
 	EVT_MENU( ID_ABOUT, viewManagerFrame::OnAbout)
 	EVT_DATAVIEW_ITEM_CONTEXT_MENU(ID_ACTION_LIST, viewManagerFrame::OnContextMenu)
 	EVT_COMMAND( wxID_ANY,DataManager::EVT_SET_ERROR,viewManagerFrame::OnSetError)
+	EVT_COMMAND( wxID_ANY,DataManager::EVT_UPDATE_DATA,viewManagerFrame::OnUpdateData)
+	
 END_EVENT_TABLE() 
 
 IMPLEMENT_APP(viewManagerApp)
@@ -98,6 +100,8 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
 	wxFrame(frame, wxID_ANY, title, wxPoint(-1, -1), wxSize(-1, -1))
 {
 	this->Maximize(true);
+
+	SetIcon(wxICON(MAIN_ICON));
 
 	wxMenu *op_menu = new wxMenu;
     op_menu->Append(ID_LOAD_CONFIG, "Load Config");
@@ -170,13 +174,18 @@ void viewManagerFrame::OnSetError(wxCommandEvent& event)
 {
 	int i = event.GetInt();
 	if(i == 0){
-		m_log->SetForegroundColour(*wxBLACK);
-		m_log->SetBackgroundColour(*wxWHITE);
+		m_log->SetForegroundColour(*wxGREEN);
+		m_log->SetBackgroundColour(*wxBLACK);
 	}else{
-		m_log->SetForegroundColour(*wxRED);
-		m_log->SetBackgroundColour(*wxBLACK);	
+		m_log->SetForegroundColour(*wxBLACK);
+		m_log->SetBackgroundColour(*wxRED);	
 	}
 	m_log->Refresh();
+}
+void viewManagerFrame::OnUpdateData(wxCommandEvent& event)
+{
+	m_tskCtrl->Refresh();
+	m_actCtrl->Refresh();
 }
 viewManagerFrame::~viewManagerFrame()
 {
@@ -214,6 +223,8 @@ void viewManagerFrame::OnLoadConfig( wxCommandEvent& WXUNUSED(event) )
 void viewManagerFrame::OnStart( wxCommandEvent& WXUNUSED(event) )
 {
 	UsbManager::init(m_dm);
+	m_noteBook->SetSelection(1);
+	m_noteBook->Enable(false);
 }
 void viewManagerFrame::OnAddImage( wxCommandEvent& WXUNUSED(event) )
 {

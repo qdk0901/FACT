@@ -55,6 +55,8 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="_DEBUG,__WXMSW__,_UNICODE,_WINDOWS,NOPCH"
+				AdditionalIncludeDirectories="&quot;G:\devel\wxWidgets-2.9.3\samples&quot;;&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib\mswud&quot;;&quot;G:\devel\wxWidgets-2.9.3\include&quot;"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
@@ -117,7 +119,10 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
+				AdditionalIncludeDirectories="&quot;G:\devel\wxWidgets-2.9.3\samples&quot;;&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib\mswud&quot;;&quot;G:\devel\wxWidgets-2.9.3\include&quot;;."
+				PreprocessorDefinitions="WIN32;_DEBUG;__WXMSW__;_WINDOWS;NOPCH"
+				MinimalRebuild="true"
+				BasicRuntimeChecks="0"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -135,7 +140,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="wxmsw29ud_adv.lib wxmsw29ud_core.lib wxbase29ud.lib wxtiffd.lib wxjpegd.lib wxpngd.lib wxzlibd.lib wxregexud.lib wxexpatd.lib winmm.lib comctl32.lib rpcrt4.lib wsock32.lib wininet.lib"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"
@@ -213,6 +220,10 @@
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+			<File
+				RelativePath=".\Batman.ico"
+				>
+			</File>
 			<File
 				RelativePath=".\fact.rc"
 				>

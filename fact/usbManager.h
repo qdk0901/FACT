@@ -66,6 +66,7 @@ public:
 	int detect();
 	usb_dev_handle* openDevice(struct usb_device *ud);
 	usb_dev_handle* getDevice(int d);
+	void setError();
 	int releaseDevice(usb_dev_handle* dev);
 protected:
 	virtual ExitCode Entry();
@@ -86,5 +87,6 @@ private:
 	void lockDevice(char* dev);
 	void unlockDevice(char* dev);
 	int isLock(char* dev);
+	int m_isError;
 };
 #endif

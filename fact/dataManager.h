@@ -81,7 +81,7 @@ public:
 	static const int OP_REPART = 115;
 	static const int OP_REBOOT_TO_SYS = 116;
 	static const int EVT_SET_ERROR = wxID_HIGHEST + 100;
-	static const int EVT_UPDATE_CTRL = wxID_HIGHEST + 101;
+	static const int EVT_UPDATE_DATA = wxID_HIGHEST + 101;
     ~DataManager();
 
 	void setError(int i);
@@ -100,7 +100,7 @@ public:
 	int loadBash(char* dir,char* bash);
 	int macGenInit(int seed);
 	int macGen(char* out);
-
+	void updateData();
 
 	TaskManager* newTask();
 	
@@ -108,7 +108,7 @@ public:
 	static void init(wxFrame* pFrame);
 	static DataManager* getManager();
 private:
-	char* getDefaultPath(char* part);
+	string getDefaultPath(char* part);
 	static DataManager* m_dm;
 
     DataManager(wxFrame* pFrame);

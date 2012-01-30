@@ -127,20 +127,28 @@ int UsbManager::releaseDevice(usb_dev_handle* dev)
 	unlockDevice(ud->filename);
 	return 0;
 }
-
+void UsbManager::setError()
+{
+	m_isError = TRUE;
+}
 wxThread::ExitCode UsbManager::Entry()
 {
 	int i = 0;
+	m_isError = FALSE;
 	while(1){
-		int stage = detect();
-		if(stage == DEV_USBBOOT_S1 || stage == DEV_USBBOOT_S2){
-			usb_dev_handle *dev = getDevice(stage);
-			if(dev != NULL)
-				new UsbbootThread(m_um,m_dm,stage,dev);
-		}else if(stage == DEV_FASTBOOT){
-			usb_dev_handle *dev = getDevice(stage);
-			if(dev != NULL)
-				new FastbootThread(m_um,m_dm,dev);		
+		if(m_isError == FALSE){
+			int stage = detect();
+			if(stage == DEV_USBBOOT_S1 || stage == DEV_USBBOOT_S2){
+				usb_dev_handle *dev = getDevice(stage);
+				if(dev != NULL)
+					new UsbbootThread(m_um,m_dm,stage,dev);
+			}else if(stage == DEV_FASTBOOT){
+				usb_dev_handle *dev = getDevice(stage);
+				if(dev != NULL)
+					new FastbootThread(m_um,m_dm,dev);		
+			}
+		}else{
+			m_dm->setError((i++)&1); //set error blind
 		}
 		wxThread::Sleep(1000);
 	}
@@ -263,7 +271,9 @@ int FastbootThread::checkResponse(unsigned size,unsigned dataOk,char* response)
         }
 
         if(!memcmp(status, "INFO", 4)) {
-            LOG("(bootloader) %s", status + 4);
+            int p = 0;
+			sscanf(status + strlen("INFO PROGRESS:"),"%d",&p);
+			m_tm->update(long(p));
             continue;
         }
 
@@ -327,15 +337,22 @@ int FastbootThread::sendCommandFull(const char* cmd,const void* data,unsigned si
     size = r;
 
     if(size) {
-        r = usb_bulk_write(m_dev, m_bulkOut, (char*)data, size,USB_BULK_TIMEOUT);
-        if(r < 0) {
-            LOG("data transfer failure (%s)", strerror(errno));
-            return -1;
-        }
-        if(r != ((int) size)) {
-            LOG("data transfer failure (short transfer)");
-            return -1;
-        }
+
+		long long frame = 0x40000;
+		long long rest = size;
+		do{
+			if(frame > rest)
+				frame = rest;
+			r = usb_bulk_write(m_dev, m_bulkOut, 
+					(char*)((unsigned)data + size - rest), frame,USB_BULK_TIMEOUT);
+			if(r != (int)frame) {
+				LOG("data transfer failure (%s)", strerror(errno));
+				return -1;
+			}
+			rest -= frame;
+			int p = 100*(size - rest)/size;
+			m_tm->update(long(p));
+		}while(rest > 0);
     }
     
     r = checkResponse(0, 0, 0);
@@ -369,6 +386,7 @@ int FastbootThread::downloadData(const void* data,unsigned size)
 }
 int FastbootThread::flashPart(char* part)
 {
+	char status[64];
 	LOG("flash part:%s",part);
 	char* data;
 	int size;
@@ -377,11 +395,17 @@ int FastbootThread::flashPart(char* part)
 		LOG("cannot get image %s",part);
 		return -1;
 	}
+
+	sprintf(status,"downloading %s ...",part);
+	m_tm->update(status);
 	if(downloadData(data,size) < 0){
 		LOG("download %s failed",part);
 		return -1;
 	}
-	
+
+	sprintf(status,"flashing %s ...",part);
+	m_tm->update(status);
+
 	char cmd[64];
 	char response[64];
 	sprintf(cmd, "flash:%s", part);
@@ -389,23 +413,31 @@ int FastbootThread::flashPart(char* part)
 		LOG("flash %s failed",part);
 		return -1;
 	}
+	LOG(".............done!");
 	return 0;
 }
 int FastbootThread::erasePart(char* part)
 {
+	char status[64];
 	LOG("erase part:%s",part);
+	sprintf(status,"erasing %s ...",part);
+	m_tm->update(status);
+	m_tm->update(long(0));
 	char cmd[64];
 	sprintf(cmd, "erase:%s", part);
 	if(sendCommand(cmd) < 0){
 		LOG("erase %s failed",part);
 		return -1;
 	}
-	LOG("done");
+	m_tm->update(100);
+	LOG(".............done!");
 	return 0;
 }
 int FastbootThread::repart()
 {
 	LOG("repart");
+	m_tm->update("repart");
+	LOG(".............done!");
 	return 0;
 }
 int FastbootThread::resetMacAddr()
@@ -415,16 +447,21 @@ int FastbootThread::resetMacAddr()
 	char mac[20];
 	char response[64];
 	m_dm->macGen(mac);
+
 	sprintf(cmd, "oem setmac %s", mac);
+
+	m_tm->update(cmd);
 	if(sendCommand(cmd,response) < 0){
 		LOG("reset mac address failed");
 		return -1;
 	}
+	LOG(".............done!");
 	return 0;
 }
 int FastbootThread::reboot()
 {
 	LOG("reboot the device");
+	m_tm->update("rebooting...");
 	char cmd[64];
 	char response[64];
 	sprintf(cmd, "reboot");
@@ -432,6 +469,7 @@ int FastbootThread::reboot()
 		LOG("reboot failed");
 		return -1;
 	}
+	LOG(".............done!");
 	return 0;
 }
 
@@ -439,24 +477,33 @@ wxThread::ExitCode FastbootThread::Entry()
 {
 	int i = 0;
 	struct tk t;
+	struct usb_device* ud = usb_device(m_dev);
+	m_tm = m_dm->newTask();
+	m_tm->update(ud->filename,"fastboot");
 	while(TRUE == m_dm->walkActionList(i++,&t))
 	{
+		int ret = 0;
 		switch(t.op)
 		{
 			case DataManager::OP_FLASH:
-				flashPart(t.v1);
+				ret = flashPart(t.v1);
 			break;
 			case DataManager::OP_ERASE:
-				erasePart(t.v1);
+				ret = erasePart(t.v1);
 			break;
 			case DataManager::OP_SETMAC:
-				resetMacAddr();
+				ret = resetMacAddr();
 			break;
 			case DataManager::OP_REPART:
-				repart();
+				ret = repart();
 			break;
 			case DataManager::OP_REBOOT_TO_SYS:
-				reboot();
+				ret = reboot();
+			break;
+		}
+		if(ret < 0){
+			m_um->setError();
+			m_tm->update("ERROR!!!");
 			break;
 		}
 	}

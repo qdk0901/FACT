@@ -12,15 +12,20 @@ DataManager::DataManager(wxFrame* pFrame)
 	m_pFrame = pFrame;
 	m_actList = new wxDataViewListStore();
 	m_tskList = new wxDataViewListStore();
-	m_partPath.insert(std::make_pair(PART_BL2,getDefaultPath(PART_BL2)));
-	m_partPath.insert(std::make_pair(PART_UBOOT,getDefaultPath(PART_UBOOT)));
+	m_partPath[PART_BL2]=getDefaultPath(PART_BL2);
+	m_partPath[PART_UBOOT]=getDefaultPath(PART_UBOOT);
 }
-char* DataManager::getDefaultPath(char* part)
+string DataManager::getDefaultPath(char* part)
 {
-	if(!strcmp(part,PART_BL2))
-		return "F:\\usbboot\\bin\\V210_USB.BL2.bin";
-	else if(!strcmp(part,PART_UBOOT))
-		return "F:\\usbboot\\bin\\u-boot.bin";
+	string s = wxGetCwd().ToStdString();
+	if(!strcmp(part,PART_BL2)){
+		s += "\\V210_USB.BL2.bin";
+		return s;
+	}
+	else if(!strcmp(part,PART_UBOOT)){
+		s += "\\u-boot.bin";
+		return s;
+	}
 	
 	return 0;
 }
@@ -31,6 +36,11 @@ void DataManager::setError(int i)
 	wxCommandEvent evt(EVT_SET_ERROR);
 	evt.SetInt(i);
 	wxPostEvent(m_pFrame->GetEventHandler(),evt);
+}
+void DataManager::updateData()
+{
+	wxCommandEvent evt(EVT_UPDATE_DATA);
+	wxPostEvent(m_pFrame->GetEventHandler(),evt);	
 }
 int DataManager::bindView(wxDataViewListCtrl* ctrl,int type)
 {
@@ -99,7 +109,7 @@ int DataManager::strToOp(const char* str)
 int DataManager::addActItem(int operation,const char* value1,const char* value2)
 {
 	if(operation == OP_FLASH){
-		m_partPath.insert(std::make_pair(value1,value2));
+		m_partPath[value1] = value2;
 	}
 	wxVector<wxVariant> data;
 	data.push_back( opToStr(operation) );
@@ -107,6 +117,7 @@ int DataManager::addActItem(int operation,const char* value1,const char* value2)
     data.push_back( wxString::Format("%s", value2) );
 
 	m_actList->AppendItem(data);
+	updateData();
 	return 0;
 }
 int DataManager::delActItem(int n)
@@ -122,13 +133,14 @@ int DataManager::delActItem(int n)
 		part = v.GetString().ToStdString();
 		m_partPath.erase(part);	
 	}
-
 	m_actList->DeleteItem(n);
+	updateData();
 	return 0;
 }
 int DataManager::clearActItems()
 {
 	m_actList->DeleteAllItems();
+	updateData();
 	return 0;
 }
 int DataManager::walkActionList(int n,struct tk* t)
@@ -359,17 +371,21 @@ TaskManager::TaskManager(DataManager* dm,wxDataViewListStore* p)
 	data.push_back( 0 ); //progress
 
 	m_tskList->AppendItem(data);
+	m_dm->updateData();
 }
 void TaskManager::update(char* device,char* bootType)
 {
 	m_tskList->SetValueByRow(device,m_tskRow,0);
 	m_tskList->SetValueByRow(bootType,m_tskRow,1);
+	m_dm->updateData();
 }
 void TaskManager::update(char* status)
 {
 	m_tskList->SetValueByRow(status,m_tskRow,2);
+	m_dm->updateData();
 }
 void TaskManager::update(long progress)
 {
 	m_tskList->SetValueByRow(progress,m_tskRow,3);
+	m_dm->updateData();
 }
