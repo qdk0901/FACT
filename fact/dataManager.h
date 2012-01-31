@@ -97,10 +97,11 @@ public:
 	char* getFileData(char* file,int* size);
 	void getAddress(int* bl2,int* uboot);
 	int walkActionList(int current,struct tk* t);
-	int loadBash(char* dir,char* bash);
+	int loadBash(const char* dir,const char* bash);
 	int macGenInit(int seed);
 	int macGen(char* out);
 	void updateData();
+	int checkAutoLoad();
 
 	TaskManager* newTask();
 	

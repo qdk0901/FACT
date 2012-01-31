@@ -289,13 +289,12 @@ void DataManager::getAddress(int* bl2,int* uboot)
 	*bl2 = 0xd0020010;
 	*uboot = 0x23e00000;
 }
-int DataManager::loadBash(char* dir,char* bash)
+int DataManager::loadBash(const char* dir,const char* bash)
 {
 	ifstream ifs(bash);
 	string s,op,v1,v2;
 	stringstream ss(s);
 	if(!ifs){
-		LOG("open file %s error",bash);
 		return -1;
 	}
 	int ret = 0;
@@ -356,7 +355,12 @@ int DataManager::macGen(char* out)
 	sprintf(out,"00:03:%02X:%02X:%02X:%02X\0",rand()&0xFF,rand()&0xFF,rand()&0xFF,rand()&0xFF);
 	return 0;
 }
-
+int DataManager::checkAutoLoad()
+{
+	string dir = wxGetCwd().ToStdString();
+	string path = dir + "\\auto.sld";
+	return loadBash(dir.c_str(),path.c_str());
+}
 
 TaskManager::TaskManager(DataManager* dm,wxDataViewListStore* p)
 {

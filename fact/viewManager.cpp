@@ -89,7 +89,7 @@ bool viewManagerApp::OnInit()
         return false;
 
     viewManagerFrame *frame =
-        new viewManagerFrame(NULL, "Factory Flash Utility");
+        new viewManagerFrame(NULL, "Factory Flash Utility -Wait for start!");
 	
     frame->Show(true);
     return true;
@@ -161,13 +161,20 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
 	
 
     m_logOld = wxLog::SetActiveTarget(new wxLogTextCtrl(m_log));
-    wxLogMessage( "This is the log window" );
+    wxLogMessage( "Sxx board flash utility" );
 	m_log->SetForegroundColour(*wxGREEN);
     m_log->SetBackgroundColour(*wxBLACK);
 
 	mainSizer->Add( m_noteBook, 1, wxGROW );
 	mainSizer->Add( m_log, 0, wxGROW );
 	SetSizerAndFit(mainSizer);
+
+	if(m_dm->checkAutoLoad() == 0){
+		UsbManager::init(m_dm);
+		m_noteBook->SetSelection(1);
+		m_noteBook->Enable(false);
+		SetTitle("Factory Flash Utility -Ready to go!");
+	}
 	
 }
 void viewManagerFrame::OnSetError(wxCommandEvent& event)
@@ -181,6 +188,7 @@ void viewManagerFrame::OnSetError(wxCommandEvent& event)
 		m_log->SetBackgroundColour(*wxRED);	
 	}
 	m_log->Refresh();
+	SetTitle("Factory Flash Utility -Error accured!");
 }
 void viewManagerFrame::OnUpdateData(wxCommandEvent& event)
 {
@@ -225,6 +233,7 @@ void viewManagerFrame::OnStart( wxCommandEvent& WXUNUSED(event) )
 	UsbManager::init(m_dm);
 	m_noteBook->SetSelection(1);
 	m_noteBook->Enable(false);
+	SetTitle("Factory Flash Utility -Ready to go!");
 }
 void viewManagerFrame::OnAddImage( wxCommandEvent& WXUNUSED(event) )
 {
