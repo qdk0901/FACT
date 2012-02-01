@@ -1,5 +1,3 @@
-rundll32 syssetup,SetupInfObjectInstallAction DefaultInstall 128 adb_driver\android_winusb.inf
-rundll32 syssetup,SetupInfObjectInstallAction DefaultInstall 128 sec_driver\secusb2.inf
-cd x86
-install-filter install -ac
+devcon_x86 dp_add usb_driver\android_winusb.inf
+devcon_x86 dp_add libusb_driver\libusb.inf
 pause
