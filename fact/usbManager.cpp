@@ -475,14 +475,13 @@ int FastbootThread::reboot()
 
 wxThread::ExitCode FastbootThread::Entry()
 {
-	int i = 0;
+	int i = 0,ret = 0;
 	struct tk t;
 	struct usb_device* ud = usb_device(m_dev);
 	m_tm = m_dm->newTask();
 	m_tm->update(ud->filename,"fastboot");
 	while(TRUE == m_dm->walkActionList(i++,&t))
 	{
-		int ret = 0;
 		switch(t.op)
 		{
 			case DataManager::OP_FLASH:
@@ -506,6 +505,9 @@ wxThread::ExitCode FastbootThread::Entry()
 			m_tm->update("ERROR!!!");
 			break;
 		}
+	}
+	if(ret == 0){
+		m_tm->update("OK!");
 	}
 	//m_um->releaseDevice(m_dev);
 
