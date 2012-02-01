@@ -120,7 +120,7 @@
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
 				AdditionalIncludeDirectories="&quot;G:\devel\wxWidgets-2.9.3\samples&quot;;&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib\mswud&quot;;&quot;G:\devel\wxWidgets-2.9.3\include&quot;;."
-				PreprocessorDefinitions="WIN32;_DEBUG;__WXMSW__;_WINDOWS;NOPCH"
+				PreprocessorDefinitions="WIN32;__WXMSW__;_WINDOWS;NOPCH"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
 				RuntimeLibrary="2"
@@ -134,16 +134,18 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="_DEBUG,__WXMSW__,_UNICODE,_WINDOWS,NOPCH"
+				AdditionalIncludeDirectories="&quot;G:\devel\wxWidgets-2.9.3\samples&quot;;&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib\mswud&quot;;&quot;G:\devel\wxWidgets-2.9.3\include&quot;"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="wxmsw29ud_adv.lib wxmsw29ud_core.lib wxbase29ud.lib wxtiffd.lib wxjpegd.lib wxpngd.lib wxzlibd.lib wxregexud.lib wxexpatd.lib winmm.lib comctl32.lib rpcrt4.lib wsock32.lib wininet.lib"
+				AdditionalDependencies="wxmsw29u_adv.lib wxmsw29u_core.lib wxbase29u.lib wxtiff.lib wxjpeg.lib wxpng.lib wxzlib.lib wxregexu.lib wxexpat.lib winmm.lib comctl32.lib rpcrt4.lib wsock32.lib wininet.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib&quot;"
-				GenerateDebugInformation="true"
+				GenerateDebugInformation="false"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
