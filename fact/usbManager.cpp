@@ -7,22 +7,27 @@
 #include "usbManager.h"
 
 UsbManager* UsbManager::m_um = NULL;
+map<int,int> UsbManager::m_idMap = map<int,int>();
 
-int UsbManager::init(DataManager* dm)
+void UsbManager::init()
+{
+	//set id to device map
+	m_idMap[0x04e81234] = DEV_USBBOOT_S1;
+	m_idMap[0x04e81235] = DEV_USBBOOT_S2;
+	m_idMap[0x18d10002] = DEV_FASTBOOT;
+	
+}
+void UsbManager::start(DataManager* dm)
 {
 	if(m_um == NULL){
-		usb_init(); /* initialize the library */
 		m_um = new UsbManager(dm);
 	}
-	return 0;
 }
 UsbManager::UsbManager(DataManager* dm)
 	:wxThread(wxTHREAD_DETACHED)
 {
-	dm->getVidPid(&m_vid1s1,&m_pid1s1,DataManager::VID_PID_1S1);
-	dm->getVidPid(&m_vid1s2,&m_pid1s2,DataManager::VID_PID_1S2);
 
-	dm->getVidPid(&m_vid2,&m_pid2,DataManager::VID_PID_2);
+
 	m_dm = dm;
 	if(Create() == wxTHREAD_NO_ERROR){
 		Run();
@@ -30,120 +35,233 @@ UsbManager::UsbManager(DataManager* dm)
 		LOG( "Cannot create usb thread");
 	}
 }
-void UsbManager::lockDevice(char* dev)
+void UsbManager::lockIf(wstring if_name)
 {
-	m_opened.insert(dev);
+	m_lockIf.insert(if_name);
 }
-void UsbManager::unlockDevice(char* dev)
+void UsbManager::unlockIf(wstring if_name)
 {
-	set<string>::iterator it = m_opened.find(dev);
-	if(it != m_opened.end()){
-		m_opened.erase(it);
+	set<wstring>::iterator it = m_lockIf.find(if_name);
+	if(it != m_lockIf.end()){
+		m_lockIf.erase(it);
 	}	
 }
-int UsbManager::isLock(char* dev)
+int UsbManager::isLock(wstring if_name)
 {
-	set<string>::iterator it = m_opened.find(dev);
-	if(it != m_opened.end()){
-		return TRUE;
-	}
-	return FALSE;
+	return !(m_lockIf.find(if_name) == m_lockIf.end());
 }
-int UsbManager::detect()
+int UsbManager::idToDevice(int vid,int pid)
 {
-	struct usb_bus* bus;
-	struct usb_device *dev;
-	usb_find_busses(); /* find all busses */
-	usb_find_devices(); /* find all connected devices */
+	map<int, int>::iterator it = m_idMap.find((vid<<16)|pid);
+	if(it != m_idMap.end()){
+		return it->second;
+	}
+	return DEV_NULL;
+}
 
-	int dt = DEV_NULL;
+int UsbManager::detect(wchar_t* ifname_out)
+{
+	int ret = DEV_NULL;
+	usb_handle* handle = NULL;
+	char entry_buffer[2048];
+	unsigned long entry_buffer_size = sizeof(entry_buffer);
 
-	for(bus = usb_get_busses(); bus; bus = bus->next){
-		for(dev = bus->devices; dev; dev = dev->next){
-			int vid = dev->descriptor.idVendor;
-			int pid = dev->descriptor.idProduct;
+    AdbInterfaceInfo* next_interface = (AdbInterfaceInfo*)(&entry_buffer[0]);
 
-			dt = DEV_NULL;
-			if( vid == m_vid1s1 && pid == m_pid1s1){
-				dt = DEV_USBBOOT_S1;
-			}else if( vid == m_vid1s2 && pid == m_pid1s2){
-				dt = DEV_USBBOOT_S2;
-			}else if(vid == m_vid2 && pid == m_pid2){
-				dt = DEV_FASTBOOT;
-			}
-			if(dt != DEV_NULL && isLock(dev->filename) == FALSE){
-				break;
-			}
+    ADBAPIHANDLE enum_handle =
+        AdbEnumInterfaces(usb_class_id, true, true, true);
+
+    if (NULL == enum_handle)
+        return DEV_NULL;
+
+    while (AdbNextInterface(enum_handle, next_interface, &entry_buffer_size)) {
+
+		wchar_t* ifname = next_interface->device_name;
+
+		if(isLock(ifname) == TRUE)
+			continue;
+
+
+		ADBAPIHANDLE h = AdbCreateInterfaceByName(ifname);
+		if(NULL == h){
+			break;
 		}
-	}
-	return dt;
-}
-usb_dev_handle* UsbManager::openDevice(struct usb_device* ud)
-{
-	usb_dev_handle *dev = NULL;
-	if (!(dev = usb_open(ud))){
-        return NULL;
-    }
-	if (usb_set_configuration(dev, 1) < 0){
-        usb_close(dev);
-        return NULL;
-    }
-	
-	if (usb_claim_interface(dev, 0) < 0) {
-		usb_close(dev);
-		return NULL;
-	}
-	lockDevice(ud->filename);
-	return dev;
-}
-usb_dev_handle* UsbManager::getDevice(int d)
-{
-	struct usb_bus* bus;
-	struct usb_device *dev;
-	usb_find_busses(); /* find all busses */
-	usb_find_devices(); /* find all connected devices */
-	for(bus = usb_get_busses(); bus; bus = bus->next){
-		for(dev = bus->devices; dev; dev = dev->next){
-			int vid = dev->descriptor.idVendor;
-			int pid = dev->descriptor.idProduct;
+		
+		USB_DEVICE_DESCRIPTOR desc;
 
-			if((d == DEV_USBBOOT_S1 && vid == m_vid1s1 && pid == m_pid1s1) ||
-				( d == DEV_USBBOOT_S2 && vid == m_vid1s2 && pid == m_pid1s2) ||
-				( d == DEV_FASTBOOT && vid == m_vid2 && pid == m_pid2)
-				)
-			{
-				return openDevice(dev);
-			}
+		if (!AdbGetUsbDeviceDescriptor(h,&desc)) {
+			AdbCloseHandle(h);
+			break;
 		}
-	}
-	return NULL;
+		ret = idToDevice(desc.idVendor,desc.idProduct);
+
+		if(ret == DEV_NULL){
+			AdbCloseHandle(h);
+			continue;
+		}
+        wcscpy(ifname_out,ifname);
+
+		AdbCloseHandle(h);
+		break;
+    }
+    AdbCloseHandle(enum_handle);
+	return ret;
 }
-int UsbManager::releaseDevice(usb_dev_handle* dev)
+int UsbManager::usbClean(usb_handle* handle)
 {
-	struct usb_device* ud;
-	ud = usb_device(dev);
-	usb_release_interface(dev,0);
-	usb_close(dev);
-	unlockDevice(ud->filename);
+	if (NULL != handle) {
+		if (NULL != handle->interface_name){
+			unlockIf(handle->interface_name);
+            free(handle->interface_name);
+		}
+        if (NULL != handle->adb_write_pipe)
+            AdbCloseHandle(handle->adb_write_pipe);
+        if (NULL != handle->adb_read_pipe)
+            AdbCloseHandle(handle->adb_read_pipe);
+        if (NULL != handle->adb_interface)
+            AdbCloseHandle(handle->adb_interface);
+
+        handle->interface_name = NULL;
+        handle->adb_write_pipe = NULL;
+        handle->adb_read_pipe = NULL;
+        handle->adb_interface = NULL;
+    }
 	return 0;
+}
+usb_handle* UsbManager::usbOpen(const wchar_t* if_name)
+{
+    usb_handle* ret = (usb_handle*)malloc(sizeof(usb_handle));
+    if (NULL == ret)
+        return NULL;
+
+    ret->adb_interface = AdbCreateInterfaceByName(if_name);
+
+    if (NULL == ret->adb_interface) {
+        free(ret);
+        return NULL;
+    }
+
+    ret->adb_read_pipe =
+        AdbOpenDefaultBulkReadEndpoint(ret->adb_interface,
+                                   AdbOpenAccessTypeReadWrite,
+                                   AdbOpenSharingModeReadWrite);
+    if (NULL != ret->adb_read_pipe) {
+        ret->adb_write_pipe =
+            AdbOpenDefaultBulkWriteEndpoint(ret->adb_interface,
+                                      AdbOpenAccessTypeReadWrite,
+                                      AdbOpenSharingModeReadWrite);
+        if (NULL != ret->adb_write_pipe) {
+            unsigned long name_len = 0;
+
+            AdbGetInterfaceName(ret->adb_interface,
+                          NULL,
+                          &name_len,
+                          false);
+            if (0 != name_len) {
+                ret->interface_name = (wchar_t*)malloc((name_len + 1)*2);
+
+                if (NULL != ret->interface_name) {
+                    if (AdbGetInterfaceName(ret->adb_interface,
+                                  ret->interface_name,
+                                  &name_len,
+                                  false)) {
+
+					    lockIf(if_name);
+                        return ret;
+                    }
+                } else {
+                    LOG("Out of memory!");
+                }
+            }
+        }
+    }
+    usbClean(ret);
+    free(ret);
+    return NULL;
 }
 void UsbManager::setError()
 {
 	m_isError = TRUE;
 }
+int UsbManager::usbWrite(usb_handle* handle, const char* data, int len) {
+    unsigned long time_out = -1;
+    unsigned long written = 0;
+    unsigned count = 0;
+    int ret;
+
+    if (NULL != handle) {
+        while(len > 0) {
+            int xfer = (len > 4096) ? 4096 : len;
+            ret = AdbWriteEndpointSync(handle->adb_write_pipe,
+                                   (void*)data,
+                                   (unsigned long)xfer,
+                                   &written,
+                                   time_out);
+            errno = GetLastError();
+            if (ret == 0) {
+                if (errno == ERROR_INVALID_HANDLE)
+					LOG("usbWrite error:Invalid handle");
+
+				LOG("%d",errno);
+                return -1;
+            }
+
+            count += written;
+            len -= written;
+            data += written;
+
+            if (len == 0)
+                return count;
+        }
+    }
+
+    LOG("usbWrite failed: %d\n", errno);
+    return -1;
+}
+int UsbManager::usbRead(usb_handle *handle, void* data, int len) {
+    unsigned long time_out = 500 + len * 8;
+    unsigned long read = 0;
+    int ret;
+
+    if (NULL != handle) {
+        while (1) {
+            int xfer = (len > 4096) ? 4096 : len;
+
+	        ret = AdbReadEndpointSync(handle->adb_read_pipe,
+	                              (void*)data,
+	                              (unsigned long)xfer,
+	                              &read,
+	                              time_out);
+            errno = GetLastError();
+            if (ret) {
+                return read;
+            } else if (errno != ERROR_SEM_TIMEOUT) {
+                if (errno == ERROR_INVALID_HANDLE)
+                    LOG("usbRead error:Invalid handle");
+                break;
+            }
+            // else we timed out - try again
+        }
+    }
+    LOG("usb_read failed: %d\n", errno);
+
+    return -1;
+}
+
 wxThread::ExitCode UsbManager::Entry()
 {
 	int i = 0;
 	m_isError = FALSE;
 	while(1){
 		if(m_isError == FALSE){
-			int stage = detect();
+			wchar_t ifname[2048];
+			int stage = detect(ifname);
 			if(stage == DEV_USBBOOT_S1 || stage == DEV_USBBOOT_S2){
-				usb_dev_handle *dev = getDevice(stage);
+				usb_handle *dev = usbOpen(ifname);
 				if(dev != NULL)
 					new UsbbootThread(m_um,m_dm,stage,dev);
 			}else if(stage == DEV_FASTBOOT){
-				usb_dev_handle *dev = getDevice(stage);
+				usb_handle *dev = usbOpen(ifname);
 				if(dev != NULL)
 					new FastbootThread(m_um,m_dm,dev);		
 			}
@@ -155,7 +273,20 @@ wxThread::ExitCode UsbManager::Entry()
 	return 0;
 }
 
-UsbbootThread::UsbbootThread(UsbManager* um,DataManager* dm,int stage,usb_dev_handle *dev)
+
+int UsbManager::installDriver()
+{
+	string d = wxGetCwd().ToStdString();
+	string p = d + "\\adb_driver\\android_winusb.inf";
+
+	int ret = usb_install_inf_np(p.c_str(),FALSE,TRUE);
+	if(ret == 0){
+		LOG("安装成功!");
+	}
+	return 0;
+}
+
+UsbbootThread::UsbbootThread(UsbManager* um,DataManager* dm,int stage,usb_handle *dev)
 {
 	m_bulkIn = 0x81;
 	m_bulkOut = 0x02;
@@ -176,7 +307,7 @@ unsigned short UsbbootThread::check_sum(char* buffer,int size)
 	return cs;
 }
 
-int UsbbootThread::usbDownload(usb_dev_handle* dev,char* data,int size,int addr)
+int UsbbootThread::usbDownload(usb_handle* dev,char* data,int size,int addr)
 {
 	char* buffer;
 	int n;
@@ -192,7 +323,7 @@ int UsbbootThread::usbDownload(usb_dev_handle* dev,char* data,int size,int addr)
 	memcpy(&buffer[8],data,size);
 	*((short*)(buffer + 8 + size)) = check_sum(&buffer[8],size);
 
-	n = usb_bulk_write(dev,m_bulkOut,buffer,size + 10,USB_BULK_TIMEOUT);
+	n = m_um->usbWrite(dev,buffer,size + 10);
 
 	LOG("download file:%d bytes written",n);
 	free(buffer);
@@ -207,18 +338,17 @@ int UsbbootThread::bootDevice()
 	int add_bl2,add_uboot;
 	int ret = -1;
 
-	struct usb_device* ud = usb_device(m_dev);
 	m_dm->getAddress(&add_bl2,&add_uboot);
 
 	if(m_stage == UsbManager::DEV_USBBOOT_S1){
 		bl2 = m_dm->getFileData(PART_BL2,&size_bl2);
-		m_tm->update(ud->filename,"usbboot stage1");
+		m_tm->update(m_dev->interface_name,"usbboot stage1");
 		if(bl2){
 			ret = usbDownload(m_dev,bl2,size_bl2,add_bl2);
 		}
 	}else if(m_stage == UsbManager::DEV_USBBOOT_S2){
 		uboot = m_dm->getFileData(PART_UBOOT,&size_uboot);
-		m_tm->update(ud->filename,"usbboot stage2");
+		m_tm->update(m_dev->interface_name,"usbboot stage2");
 		if(uboot){
 			ret = usbDownload(m_dev,uboot,size_uboot,add_uboot);
 		}
@@ -232,7 +362,7 @@ wxThread::ExitCode UsbbootThread::Entry()
 	ret = bootDevice();
 	if(ret > 0 ){
 		m_tm->update(long(100));
-		m_um->releaseDevice(m_dev);
+		m_um->usbClean(m_dev);
 	}
 	else
 		m_tm->update(long(0));
@@ -240,7 +370,7 @@ wxThread::ExitCode UsbbootThread::Entry()
 	return 0;
 }
 
-FastbootThread::FastbootThread(UsbManager* um,DataManager* dm,usb_dev_handle *dev)
+FastbootThread::FastbootThread(UsbManager* um,DataManager* dm,usb_handle *dev)
 {
 	m_bulkIn = 0x81;
 	m_bulkOut = 0x02;
@@ -258,7 +388,7 @@ int FastbootThread::checkResponse(unsigned size,unsigned dataOk,char* response)
     int r;
 
     for(;;) {
-        r = usb_bulk_read(m_dev, m_bulkIn, (char*)status, 64,USB_BULK_TIMEOUT);
+        r = m_um->usbRead(m_dev, (char*)status, 64);
         if(r < 0) {
             LOG("status read failed (%s)", strerror(errno));
             return -1;
@@ -321,7 +451,7 @@ int FastbootThread::sendCommandFull(const char* cmd,const void* data,unsigned si
         return -1;
     }
 
-    if(usb_bulk_write(m_dev, m_bulkOut,(char*)cmd, cmdsize,USB_BULK_TIMEOUT) != cmdsize) {
+    if(m_um->usbWrite(m_dev, (char*)cmd, cmdsize) != cmdsize) {
         LOG("command write failed (%s)", strerror(errno));
         return -1;
     }
@@ -343,8 +473,7 @@ int FastbootThread::sendCommandFull(const char* cmd,const void* data,unsigned si
 		do{
 			if(frame > rest)
 				frame = rest;
-			r = usb_bulk_write(m_dev, m_bulkOut, 
-					(char*)((unsigned)data + size - rest), frame,USB_BULK_TIMEOUT);
+			r = m_um->usbWrite(m_dev,(char*)((unsigned)data + size - rest), frame);
 			if(r != (int)frame) {
 				LOG("data transfer failure (%s)", strerror(errno));
 				return -1;
@@ -477,9 +606,8 @@ wxThread::ExitCode FastbootThread::Entry()
 {
 	int i = 0,ret = 0;
 	struct tk t;
-	struct usb_device* ud = usb_device(m_dev);
 	m_tm = m_dm->newTask();
-	m_tm->update(ud->filename,"fastboot");
+	m_tm->update(m_dev->interface_name,"fastboot");
 	while(TRUE == m_dm->walkActionList(i++,&t))
 	{
 		switch(t.op)
@@ -509,7 +637,7 @@ wxThread::ExitCode FastbootThread::Entry()
 	if(ret == 0){
 		m_tm->update("OK!");
 	}
-	//m_um->releaseDevice(m_dev);
+	m_um->usbClean(m_dev);
 
 	return 0;
 }

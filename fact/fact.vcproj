@@ -63,7 +63,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="wxmsw29ud_adv.lib wxmsw29ud_core.lib wxbase29ud.lib wxtiffd.lib wxjpegd.lib wxpngd.lib wxzlibd.lib wxregexud.lib wxexpatd.lib winmm.lib comctl32.lib rpcrt4.lib wsock32.lib wininet.lib"
+				AdditionalDependencies="wxmsw29ud_adv.lib wxmsw29ud_core.lib wxbase29ud.lib wxtiffd.lib wxjpegd.lib wxpngd.lib wxzlibd.lib wxregexud.lib wxexpatd.lib winmm.lib comctl32.lib rpcrt4.lib wsock32.lib wininet.lib setupapi.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib&quot;"
 				GenerateDebugInformation="true"
@@ -142,7 +142,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="wxmsw29u_adv.lib wxmsw29u_core.lib wxbase29u.lib wxtiff.lib wxjpeg.lib wxpng.lib wxzlib.lib wxregexu.lib wxexpat.lib winmm.lib comctl32.lib rpcrt4.lib wsock32.lib wininet.lib"
+				AdditionalDependencies="wxmsw29u_adv.lib wxmsw29u_core.lib wxbase29u.lib wxtiff.lib wxjpeg.lib wxpng.lib wxzlib.lib wxregexu.lib wxexpat.lib winmm.lib comctl32.lib rpcrt4.lib wsock32.lib wininet.lib setupapi.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;G:\devel\wxWidgets-2.9.3\lib\vc_lib&quot;"
 				GenerateDebugInformation="false"
@@ -187,6 +187,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\driverInstall.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\usbManager.cpp"
 				>
 			</File>
@@ -201,11 +205,19 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\adb_api.h"
+				>
+			</File>
+			<File
+				RelativePath=".\adb_winusb_api.h"
+				>
+			</File>
+			<File
 				RelativePath=".\dataManager.h"
 				>
 			</File>
 			<File
-				RelativePath=".\lusb0_usb.h"
+				RelativePath=".\driverInstall.h"
 				>
 			</File>
 			<File
@@ -232,7 +244,11 @@
 			</File>
 		</Filter>
 		<File
-			RelativePath=".\libusb.lib"
+			RelativePath=".\AdbWinApi.lib"
+			>
+		</File>
+		<File
+			RelativePath=".\AdbWinUsbApi.lib"
 			>
 		</File>
 	</Files>

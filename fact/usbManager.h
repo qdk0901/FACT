@@ -1,13 +1,24 @@
 #ifndef USBMANAGER_H
 #define USBMANAGER_H
 #include "dataManager.h"
-#include "lusb0_usb.h"
+#include <windows.h>
+#include <usb100.h>
+#include "adb_api.h"
+#include "adb_winusb_api.h"
+#include "driverInstall.h"
+
+
 #include <set>
 #include <map>
 using namespace std;
 
-
-#define USB_BULK_TIMEOUT -1
+struct usb_handle {
+    ADBAPIHANDLE  adb_interface;
+    ADBAPIHANDLE  adb_read_pipe;
+    ADBAPIHANDLE  adb_write_pipe;
+    wchar_t*         interface_name;
+};
+static const GUID usb_class_id = ANDROID_USB_CLASS_ID;
 
 class UsbManager;
 
@@ -18,15 +29,15 @@ class UsbbootThread
 protected:
 	virtual ExitCode Entry();
 private:
-	UsbbootThread(UsbManager* um,DataManager* dm,int stage,usb_dev_handle *dev);
+	UsbbootThread(UsbManager* um,DataManager* dm,int stage,usb_handle *dev);
 	UsbManager* m_um;
 	DataManager* m_dm;
 	TaskManager* m_tm;
 	unsigned short check_sum(char* buffer,int size);
-	int usbDownload(usb_dev_handle* dev,char* data,int size,int addr);
+	int usbDownload(usb_handle* dev,char* data,int size,int addr);
 	int bootDevice();
 	int m_stage;
-	usb_dev_handle* m_dev;
+	usb_handle* m_dev;
 	int	m_bulkIn;
 	int m_bulkOut;
 };
@@ -37,11 +48,11 @@ class FastbootThread
 protected:
 	virtual ExitCode Entry();	
 private:
-	FastbootThread(UsbManager* um,DataManager* dm,usb_dev_handle *dev);
+	FastbootThread(UsbManager* um,DataManager* dm,usb_handle *dev);
 	UsbManager* m_um;
 	DataManager* m_dm;
 	TaskManager* m_tm;
-	usb_dev_handle* m_dev;
+	usb_handle* m_dev;
 	int	m_bulkIn;
 	int m_bulkOut;
 	int checkResponse(unsigned size,unsigned dataOk,char* response);
@@ -57,17 +68,22 @@ private:
 };
 class UsbManager : public wxThread{
 public:
-	static const int DEV_NULL	= 0;
 	static const int DEV_USBBOOT_S1 = 1;
 	static const int DEV_USBBOOT_S2 = 2;
 	static const int DEV_FASTBOOT = 3;
+	static const int DEV_NULL = 4;
 
-	static int init(DataManager* dm);
-	int detect();
-	usb_dev_handle* openDevice(struct usb_device *ud);
-	usb_dev_handle* getDevice(int d);
+	static void init();
+	static void start(DataManager* dm);
+	int UsbManager::detect(wchar_t* ifname_out);
+	usb_handle* usbOpen(const wchar_t* if_name);
+	int usbClean(usb_handle* handle);
+	int usbWrite(usb_handle* handle, const char* data, int len);
+	int usbRead(usb_handle *handle, void* data, int len);
+
+	static int installDriver();
+
 	void setError();
-	int releaseDevice(usb_dev_handle* dev);
 protected:
 	virtual ExitCode Entry();
 private:
@@ -75,18 +91,15 @@ private:
 	UsbManager(DataManager* dm);
 	DataManager* m_dm;
 
-	//vid pid for usb boot
-	int m_vid1s1;
-	int m_pid1s1;
-	int m_vid1s2;
-	int m_pid1s2;
-	//vid pid for fastboot
-	int m_vid2;
-	int m_pid2;
-	set<string> m_opened;
-	void lockDevice(char* dev);
-	void unlockDevice(char* dev);
-	int isLock(char* dev);
+
+
+	int idToDevice(int vid,int pid);
+
+	set<wstring> m_lockIf;
+	void lockIf(wstring if_name);
+	void unlockIf(wstring if_name);
+	int isLock(wstring if_name);
 	int m_isError;
+	static map<int,int> m_idMap;
 };
 #endif

@@ -19,6 +19,7 @@ enum
 {
     ID_LOAD_CONFIG = wxID_HIGHEST+1,
     ID_START,
+	ID_INSTALL_DRV,
     ID_ADD_IMAGE,
     ID_ERASE_DATA,
 	ID_ERASE_CACHE,
@@ -47,6 +48,7 @@ public:
 private:
 	void OnLoadConfig(wxCommandEvent& event);
 	void OnStart(wxCommandEvent& event);
+	void OnInstallDriver(wxCommandEvent& event);
 	void OnAddImage(wxCommandEvent& event);
 	void OnMisc(wxCommandEvent& event);
 	void OnDelete(wxCommandEvent& event);
@@ -54,6 +56,11 @@ private:
 	void OnContextMenu( wxDataViewEvent &event );
 	void OnSetError(wxCommandEvent& WXUNUSED(event));
 	void OnUpdateData(wxCommandEvent& WXUNUSED(event));
+
+	void updateTitle(wxString mode,wxString status);
+
+	wxString m_mode;
+	wxString m_status;
 
 	wxNotebook* m_noteBook;
 	wxTextCtrl* m_log;
@@ -66,6 +73,7 @@ private:
 BEGIN_EVENT_TABLE(viewManagerFrame, wxFrame)
 	EVT_MENU( ID_LOAD_CONFIG, viewManagerFrame::OnLoadConfig)
 	EVT_MENU( ID_START, viewManagerFrame::OnStart)
+	EVT_MENU( ID_INSTALL_DRV, viewManagerFrame::OnInstallDriver)
 	EVT_MENU( ID_ADD_IMAGE, viewManagerFrame::OnAddImage)
 	EVT_MENU( ID_ERASE_DATA, viewManagerFrame::OnMisc)
 	EVT_MENU( ID_ERASE_CACHE, viewManagerFrame::OnMisc)
@@ -89,7 +97,7 @@ bool viewManagerApp::OnInit()
         return false;
 
     viewManagerFrame *frame =
-        new viewManagerFrame(NULL, "Factory Flash Utility -Wait for start!");
+        new viewManagerFrame(NULL, "");
 	
     frame->Show(true);
     return true;
@@ -97,24 +105,27 @@ bool viewManagerApp::OnInit()
 
 
 viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
-	wxFrame(frame, wxID_ANY, title, wxPoint(-1, -1), wxSize(-1, -1))
+	wxFrame(frame, wxID_ANY, title, wxPoint(-1, -1), wxSize(-1, -1)),
+	m_mode(wxT("人工")),m_status(wxT("等待"))
 {
 	this->Maximize(true);
+
 
 	SetIcon(wxICON(MAIN_ICON));
 
 	wxMenu *op_menu = new wxMenu;
-    op_menu->Append(ID_LOAD_CONFIG, "Load Config");
-    op_menu->Append(ID_START, "Start");
+    op_menu->Append(ID_LOAD_CONFIG, wxT("批量加载"));
+	op_menu->Append(ID_INSTALL_DRV, wxT("安装驱动"));
+    op_menu->Append(ID_START, wxT("开始"));
     op_menu->AppendSeparator();
-    op_menu->Append(ID_EXIT, "Exit");
+    op_menu->Append(ID_EXIT, wxT("退出"));
 
 	wxMenu *about_menu = new wxMenu;
-    about_menu->Append(ID_ABOUT, "About");
+    about_menu->Append(ID_ABOUT, wxT("关于"));
 
     wxMenuBar *menu_bar = new wxMenuBar;
-    menu_bar->Append(op_menu, "&Operations");
-    menu_bar->Append(about_menu, "&About");
+    menu_bar->Append(op_menu, wxT("操作"));
+    menu_bar->Append(about_menu, wxT("关于"));
 	SetMenuBar(menu_bar);
 
 
@@ -147,8 +158,8 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
 	tsk_panel->SetSizerAndFit(tsk_sizer);
 
 
-	m_noteBook->AddPage(act_panel, "Actions List");
-    m_noteBook->AddPage(tsk_panel, "Tasks List");
+	m_noteBook->AddPage(act_panel, "任务列表");
+    m_noteBook->AddPage(tsk_panel, "状态列表");
 
 	wxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
 
@@ -161,21 +172,42 @@ viewManagerFrame::viewManagerFrame(wxFrame *frame, const wxString &title):
 	
 
     m_logOld = wxLog::SetActiveTarget(new wxLogTextCtrl(m_log));
-    wxLogMessage( "Sxx board flash utility" );
+    wxLogMessage( "日志窗口" );
 	m_log->SetForegroundColour(*wxGREEN);
     m_log->SetBackgroundColour(*wxBLACK);
 
 	mainSizer->Add( m_noteBook, 1, wxGROW );
 	mainSizer->Add( m_log, 0, wxGROW );
 	SetSizerAndFit(mainSizer);
-
+	
+	updateTitle(wxT(""),wxT(""));
 	if(m_dm->checkAutoLoad() == 0){
-		UsbManager::init(m_dm);
+		UsbManager::start(m_dm);
 		m_noteBook->SetSelection(1);
 		m_noteBook->Enable(false);
-		SetTitle("Factory Flash Utility -Ready to go!");
+		updateTitle(wxT("自动"),wxT(""));
 	}
+
+	UsbManager::init();
 	
+}
+void viewManagerFrame::OnInstallDriver(wxCommandEvent& event)
+{
+	UsbManager::installDriver();
+}
+void viewManagerFrame::updateTitle(wxString mode,wxString status)
+{
+	wxString t = wxT("刷机工具 1.01 -");
+	
+	if(mode != wxT(""))
+		m_mode = mode;
+	if(status != wxT(""))
+		m_status = status;
+
+
+	t = t + wxString::Format(wxT("模式[%s] 状态[%s]"),m_mode,m_status);
+
+	SetTitle(t);
 }
 void viewManagerFrame::OnSetError(wxCommandEvent& event)
 {
@@ -188,7 +220,7 @@ void viewManagerFrame::OnSetError(wxCommandEvent& event)
 		m_log->SetBackgroundColour(*wxRED);	
 	}
 	m_log->Refresh();
-	SetTitle("Factory Flash Utility -Error accured!");
+	updateTitle(wxT(""),wxT("出错"));
 }
 void viewManagerFrame::OnUpdateData(wxCommandEvent& event)
 {
@@ -203,10 +235,10 @@ void viewManagerFrame::OnLoadConfig( wxCommandEvent& WXUNUSED(event) )
     wxFileDialog dialog
                  (
                     this,
-                    wxT("Select Config File"),
+                    wxT("选择sld文件"),
                     wxEmptyString,
                     wxEmptyString,
-                    wxT("Image files (*.sld)|*.sld")
+                    wxT("sld文件 (*.sld)|*.sld")
 					);
 
     dialog.CentreOnParent();
@@ -220,30 +252,30 @@ void viewManagerFrame::OnLoadConfig( wxCommandEvent& WXUNUSED(event) )
         int ret = m_dm->loadBash(dir,path);
 		if(ret != 0){
 			wxString info;
-			info.Printf(wxT("Invalid Config: %s\n"),
+			info.Printf(wxT("无效的文件: %s\n"),
 						dialog.GetPath().c_str()
 						);
-			wxMessageDialog dialog2(this, info, wxT("Selected file"));
+			wxMessageDialog dialog2(this, info, wxT("选择sld文件"));
 			dialog2.ShowModal();
 		}
     }	
 }
 void viewManagerFrame::OnStart( wxCommandEvent& WXUNUSED(event) )
 {
-	UsbManager::init(m_dm);
+	UsbManager::start(m_dm);
 	m_noteBook->SetSelection(1);
 	m_noteBook->Enable(false);
-	SetTitle("Factory Flash Utility -Ready to go!");
+	updateTitle(wxT(""),wxT("运行中"));
 }
 void viewManagerFrame::OnAddImage( wxCommandEvent& WXUNUSED(event) )
 {
     wxFileDialog dialog
                  (
                     this,
-                    wxT("Select Image File"),
+                    wxT("选择镜像文件"),
                     wxEmptyString,
                     wxEmptyString,
-                    wxT("Image files (*.*)|*.*")
+                    wxT("镜像文件 (*.*)|*.*")
 					);
 
     dialog.CentreOnParent();
@@ -257,10 +289,10 @@ void viewManagerFrame::OnAddImage( wxCommandEvent& WXUNUSED(event) )
 			m_dm->addActItem(DataManager::OP_FLASH,part,path);
 		}else{
 			wxString info;
-			info.Printf(wxT("Invalid File: %s\n"),
+			info.Printf(wxT("无效的镜像文件: %s\n"),
 						dialog.GetPath().c_str()
 						);
-			wxMessageDialog dialog2(this, info, wxT("Selected file"));
+			wxMessageDialog dialog2(this, info, wxT("选择镜像文件"));
 			dialog2.ShowModal();
 		}
     }
@@ -313,8 +345,8 @@ void viewManagerFrame::OnDelete( wxCommandEvent& WXUNUSED(event) )
 void viewManagerFrame::OnAbout( wxCommandEvent& WXUNUSED(event) )
 {
     wxAboutDialogInfo info;
-    info.SetName(_("Factocy Flash Utility"));
-    info.SetDescription(_("Used for mass production"));
+    info.SetName(_("刷机工具v1.01"));
+    info.SetDescription(_("Used for Mass Production"));
     info.SetCopyright(wxT("(C) 2012- SangGu Technology"));
     info.AddDeveloper("Derek Quan");
 
@@ -323,13 +355,13 @@ void viewManagerFrame::OnAbout( wxCommandEvent& WXUNUSED(event) )
 void viewManagerFrame::OnContextMenu( wxDataViewEvent& event)
 {
     wxMenu menu;
-	menu.Append(ID_ADD_IMAGE, "Add image");
-    menu.Append(ID_ERASE_DATA, "Erase data");
-	menu.Append(ID_ERASE_CACHE, "Erase cache");
-	menu.Append(ID_ERASE_FAT, "Erase fat");
-	menu.Append(ID_REPART, "Repartition");
-	menu.Append(ID_SETMAC, "Reset Mac Address");
-	menu.Append(ID_REBOOT, "Reboot Device");
-	menu.Append(ID_DELETE, "Delete Item");
+	menu.Append(ID_ADD_IMAGE, "添加镜像");
+    menu.Append(ID_ERASE_DATA, "格式化data分区");
+	menu.Append(ID_ERASE_CACHE, "格式化cache分区");
+	menu.Append(ID_ERASE_FAT, "格式化fat分区");
+	menu.Append(ID_REPART, "重新分区");
+	menu.Append(ID_SETMAC, "设置网卡地址");
+	menu.Append(ID_REBOOT, "重启设备");
+	menu.Append(ID_DELETE, "删除");
     m_actCtrl->PopupMenu(&menu);
 }

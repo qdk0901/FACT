@@ -42,7 +42,7 @@ class TaskManager
 public:
 	friend class DataManager;
 	~TaskManager();
-	void update(char* device,char* bootType);
+	void update(wchar_t* device,char* bootType);
 	void update(char* status);
 	void update(long progress);
 private:
@@ -71,9 +71,6 @@ class DataManager
 public:
 	static const int DVC_ACT_CTRL = 101;
 	static const int DVC_TSK_CTRL = 102;
-	static const int VID_PID_1S1 = 103;
-	static const int VID_PID_1S2 = 104;
-	static const int VID_PID_2 = 105;
 	
 	static const int OP_FLASH = 112;
 	static const int OP_ERASE = 113;

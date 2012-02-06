@@ -12,8 +12,12 @@ DataManager::DataManager(wxFrame* pFrame)
 	m_pFrame = pFrame;
 	m_actList = new wxDataViewListStore();
 	m_tskList = new wxDataViewListStore();
+
+	//set default path
 	m_partPath[PART_BL2]=getDefaultPath(PART_BL2);
 	m_partPath[PART_UBOOT]=getDefaultPath(PART_UBOOT);
+
+
 }
 string DataManager::getDefaultPath(char* part)
 {
@@ -49,9 +53,9 @@ int DataManager::bindView(wxDataViewListCtrl* ctrl,int type)
 		case DVC_ACT_CTRL:
 			{
 				ctrl->AssociateModel(m_actList);
-				ctrl->AppendTextColumn("Action",wxDATAVIEW_CELL_INERT,sz.GetWidth()/3);
-				ctrl->AppendTextColumn("Value1",wxDATAVIEW_CELL_INERT,sz.GetWidth()/10);
-				ctrl->AppendTextColumn("Value2",wxDATAVIEW_CELL_INERT,sz.GetWidth()/3);
+				ctrl->AppendTextColumn(wxT("任务"),wxDATAVIEW_CELL_INERT,sz.GetWidth()/3);
+				ctrl->AppendTextColumn(wxT("值1"),wxDATAVIEW_CELL_INERT,sz.GetWidth()/10);
+				ctrl->AppendTextColumn(wxT("值2"),wxDATAVIEW_CELL_INERT,sz.GetWidth()/3);
 				break;
 			}
 		case DVC_TSK_CTRL:
@@ -59,10 +63,10 @@ int DataManager::bindView(wxDataViewListCtrl* ctrl,int type)
 				
 				ctrl->AssociateModel(m_tskList);
 				
-				ctrl->AppendTextColumn("Device",wxDATAVIEW_CELL_INERT,sz.GetWidth()/4);
-				ctrl->AppendTextColumn("Boot Type",wxDATAVIEW_CELL_INERT,sz.GetWidth()/4);
-				ctrl->AppendTextColumn("Status",wxDATAVIEW_CELL_INERT,sz.GetWidth()/4);
-				ctrl->AppendProgressColumn( "Progress",wxDATAVIEW_CELL_INERT,sz.GetWidth()/10);
+				ctrl->AppendTextColumn(wxT("设备"),wxDATAVIEW_CELL_INERT,sz.GetWidth()/3);
+				ctrl->AppendTextColumn(wxT("引导方式"),wxDATAVIEW_CELL_INERT,sz.GetWidth()/4);
+				ctrl->AppendTextColumn(wxT("状态"),wxDATAVIEW_CELL_INERT,sz.GetWidth()/4);
+				ctrl->AppendProgressColumn( wxT("进度"),wxDATAVIEW_CELL_INERT,sz.GetWidth()/10);
 				break;
 			}
 		default:
@@ -220,19 +224,6 @@ TaskManager* DataManager::newTask()
 	TaskManager* tm = new TaskManager(m_dm,m_tskList);
 	return tm;
 }
-void DataManager::getVidPid(int* vid,int* pid,int type)
-{
-	if(type == VID_PID_1S1){
-		*vid = 0x04e8;
-		*pid = 0x1234;
-	}else if(type == VID_PID_1S2){
-		*vid = 0x04e8;
-		*pid = 0x1235;
-	}else if(type == VID_PID_2){
-		*vid = 0x18d1;
-		*pid = 0x0002;
-	}
-}
 char* DataManager::loadFile(char* fn,int* _sz)
 {
     char *data;
@@ -377,7 +368,7 @@ TaskManager::TaskManager(DataManager* dm,wxDataViewListStore* p)
 	m_tskList->AppendItem(data);
 	m_dm->updateData();
 }
-void TaskManager::update(char* device,char* bootType)
+void TaskManager::update(wchar_t* device,char* bootType)
 {
 	m_tskList->SetValueByRow(device,m_tskRow,0);
 	m_tskList->SetValueByRow(bootType,m_tskRow,1);
